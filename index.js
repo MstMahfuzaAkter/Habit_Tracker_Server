@@ -70,6 +70,15 @@ app.put("/habit/:id", async (req, res) => {
         result,
     });
 });
+app.delete("/habit/:id", async (req, res) => {
+    const { id } = req.params;
+    const result = await habitCollection.deleteOne({ _id: new ObjectId(id) });
+
+    res.send({
+        success: true,
+        result,
+    });
+});
 
 
 async function run() {
