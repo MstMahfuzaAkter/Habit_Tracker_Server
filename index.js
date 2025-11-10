@@ -30,6 +30,17 @@ app.get("/habit", async (req, res) => {
     res.send(result);
 });
 
+
+app.post("/habit", async (req, res) => {
+    const data = req.body;
+    // console.log(data)
+    const result = await habitCollection.insertOne(data);
+    res.send({
+        success: true,
+        result,
+    });
+});
+
 async function run() {
     try {
         //await client.connect();
