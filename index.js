@@ -32,6 +32,8 @@ app.get("/habit", async (req, res) => {
 
 app.get("/habit/:id", async (req, res) => {
     const { id } = req.params;
+    console.log(id);
+
     const objectId = new ObjectId(id);
 
     const result = await habitCollection.findOne({ _id: objectId });
@@ -50,6 +52,25 @@ app.post("/habit", async (req, res) => {
         result,
     });
 });
+app.put("/habit/:id", async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    // console.log(id)
+    // console.log(data)
+    const objectId = new ObjectId(id);
+    const filter = { _id: objectId };
+    const update = {
+        $set: data,
+    };
+
+    const result = await habitCollection.updateOne(filter, update);
+
+    res.send({
+        success: true,
+        result,
+    });
+});
+
 
 async function run() {
     try {
