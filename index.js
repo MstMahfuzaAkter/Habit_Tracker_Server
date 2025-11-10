@@ -79,7 +79,19 @@ app.delete("/habit/:id", async (req, res) => {
         result,
     });
 });
+app.get("/latest-habit", async (req, res) => {
+    const result = await habitCollection
+        .find()
+        .sort({
+            createdAt: "desc"
+        })
+        .limit(2)
+        .toArray();
 
+    console.log(result);
+
+    res.send(result);
+});
 
 async function run() {
     try {
