@@ -4,7 +4,13 @@ const port = process.env.PORT || 3000;
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
+const admin = require("firebase-admin");
 
+const serviceAccount = require("./habit-tracker-b0971-firebase-adminsdk-fbsvc.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
 // middleware
 app.use(cors());
 app.use(express.json());
@@ -19,6 +25,27 @@ const client = new MongoClient(uri, {
     }
 });
 
+
+const verifyToken = async (req, res, next) => {
+    const authorization = req.headers.authorization;
+
+    if (!authorization) {
+        return res.status(401).send({
+            message: "unauthorized access. Token not found!",
+        });
+    }
+
+    const token = authorization.split(" ")[1];
+    try {
+        await admin.auth().verifyIdToken(token);
+
+        next();
+    } catch (error) {
+        res.status(401).send({
+            message: "unauthorized access.",
+        });
+    }
+};
 const db = client.db("habit-db");
 const habitCollection = db.collection("habit");
 // app.get('/', (req, res) => {
@@ -50,6 +77,15 @@ app.post("/habit", async (req, res) => {
     res.send({
         success: true,
         result,
+    });
+});
+
+app.get("/my-habits/:email", async (req, res) => {
+    const { email } = req.params;
+    const result = await habitCollection.find({ userEmail: email }).toArray();
+    res.send({
+        success: true,
+        result
     });
 });
 app.put("/habit/:id", async (req, res) => {
@@ -85,13 +121,65 @@ app.get("/latest-habit", async (req, res) => {
         .sort({
             createdAt: "desc"
         })
-        .limit(2)
+        .limit(6)
         .toArray();
 
     console.log(result);
 
     res.send(result);
 });
+
+app.get("/my-habit", async (req, res) => {
+    const email = req.query.email;
+    const result = await habitCollection.find({ userEmail: email }).toArray();
+    res.send(result);
+});
+
+app.put("/habit/:id/complete", async (req, res) => {
+    const { id } = req.params;
+    const objectId = new ObjectId(id);
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+
+    try {
+        const habit = await habitCollection.findOne({ _id: objectId });
+
+        if (!habit) {
+            return res.status(404).send({ success: false, message: "Habit not found" });
+        }
+
+        // Prevent duplicate same-day entry
+        if (habit.completionHistory && habit.completionHistory.includes(today)) {
+            return res.send({ success: false, message: "Already marked complete today!" });
+        }
+
+        // Push today's date into completionHistory array
+        const update = {
+            $push: { completionHistory: today },
+        };
+
+        await habitCollection.updateOne({ _id: objectId }, update);
+
+        // Re-fetch updated habit
+        const updatedHabit = await habitCollection.findOne({ _id: objectId });
+
+        // Calculate streak
+        const streak = calculateStreak(updatedHabit.completionHistory || []);
+
+        // Update current streak field
+        await habitCollection.updateOne({ _id: objectId }, { $set: { currentStreak: streak } });
+
+        res.send({
+            success: true,
+            message: "Habit marked complete!",
+            result: { ...updatedHabit, currentStreak: streak },
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ success: false, message: "Server Error" });
+    }
+});
+
+
 
 async function run() {
     try {
